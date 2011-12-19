@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hello">轉為鵬程製作！\n\n電話錄音機\n錄音文件在/sdcard/callrec/\n\nLHT 2011-12-13</string>
+    <string name="app_name">電話錄音</string>
+    <string name="start_record">啟動電話錄音服務</string>
+    <string name="stop_record">停止電話錄音服務</string>
+</resources>

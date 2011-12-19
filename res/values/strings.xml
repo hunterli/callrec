@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="hello">Call recorder just for you\n\nLHT 2011-12-13</string>
+    <string name="app_name">callrec</string>
+    <string name="start_record">start recording</string>
+    <string name="stop_record">stop recording</string>
+
+</resources>

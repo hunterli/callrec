@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hello">专为鹏程制作！\n\n电话录音软件\n录音文件在/sdcard/callrec/\n\nLHT 2011-12-13</string>
+    <string name="app_name">电话录音</string>
+    <string name="start_record">启动电话录音服务</string>
+    <string name="stop_record">停止电话录音服务</string>
+</resources>
