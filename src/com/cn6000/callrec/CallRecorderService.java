@@ -15,7 +15,6 @@ import android.media.MediaRecorder;
 import android.net.Uri;
 import android.os.Environment;
 import android.os.IBinder;
-import android.provider.ContactsContract;
 import android.provider.ContactsContract.PhoneLookup;
 import android.telephony.TelephonyManager;
 import android.util.Log;
@@ -25,8 +24,8 @@ public class CallRecorderService extends Service {
 	protected static final String TAG = CallRecorderService.class.getName();
 	private static final String AMR_DIR = "/callrec/";
 	private static final String IDLE = "";
-	private static final String INCOMING_CALL = "_i";
-	private static final String OUTGOING_CALL = "_o";
+	private static final String INCOMING_CALL_SUFFIX = "_i";
+	private static final String OUTGOING_CALL_SUFFIX = "_o";
 
 	private Context cntx;
 	private volatile String fileNamePrefix = IDLE;
@@ -50,7 +49,7 @@ public class CallRecorderService extends Service {
 	@Override
 	public void onDestroy() {
 		Log.d(TAG, "service destory");
-		this.stopRecord();
+		this.stopRecording();
 		this.unregisterReceiver();
 		cntx = null;
 		super.onDestroy();
@@ -70,7 +69,7 @@ public class CallRecorderService extends Service {
 		return cntx;
 	}
 
-	private void stopRecord() {
+	private void stopRecording() {
 		if (isInRecording) {
 			isInRecording = false;
 			recorder.stop();
@@ -87,10 +86,10 @@ public class CallRecorderService extends Service {
 		return localSimpleDateFormat.format(localDate);
 	}
 
-	private void callRecording() {
+	private void startRecording() {
 		if (!isMounted)
 			return;
-		stopRecord();
+		stopRecording();
 		try {
 			Log.d(TAG, "prepare MediaRecorder");
 			recorder = new MediaRecorder();
@@ -113,69 +112,75 @@ public class CallRecorderService extends Service {
 		}
 	}
 
+	private void onExternalStorageStateChange(Context context, Intent intent) {
+		String state = Environment.getExternalStorageState();
+		if (Environment.MEDIA_MOUNTED.equals(state)) {
+			isMounted = true;
+		} else {
+			isMounted = false;
+		}
+	}
+
+	private void onOutgoingCall(Context context, Intent intent, String extra) {
+		String state = intent.getStringExtra(TelephonyManager.EXTRA_STATE);
+		String phoneNo = extra;
+		if (null == phoneNo) {
+			phoneNo = intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER);
+		}
+		Log.d(TAG,
+				"Outgoing call, extra_phone_number: "
+						+ phoneNo
+						+ " extra_incoming_number: "
+						+ intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
+						+ " State: " + state);
+		fileNamePrefix = getContactName(context, phoneNo) + OUTGOING_CALL_SUFFIX;
+		Log.d(TAG, fileNamePrefix);
+	}
+
+	private void onPhoneStateChange(Context context, Intent intent) {
+		String state = intent.getStringExtra(TelephonyManager.EXTRA_STATE);
+		Log.d(TAG,
+				"Phone state changed, extra_phone_number: "
+						+ intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER)
+						+ " extra_incoming_number: "
+						+ intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
+						+ " State: " + state);
+		if (TelephonyManager.EXTRA_STATE_OFFHOOK.equals(state)) {
+			Log.d(TAG, "offhook, start recording...");
+			startRecording();
+		} else if (TelephonyManager.EXTRA_STATE_IDLE.equals(state)) {
+			Log.d(TAG, "idle, stop recording...");
+			stopRecording();
+			fileNamePrefix = IDLE;
+			Log.d(TAG, fileNamePrefix);
+		} else if (TelephonyManager.EXTRA_STATE_RINGING.equals(state)) {
+			Log.d(TAG, "ringing, book incoming number...");
+			fileNamePrefix = getContactName(
+					context,
+					intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER))
+					+ INCOMING_CALL_SUFFIX;
+			Log.d(TAG, fileNamePrefix);
+		}
+	}
+
 	private void registerReceiver() {
 		receiver = new BroadcastReceiver() {
 			@Override
 			public void onReceive(Context context, Intent intent) {
-				Log.d(TAG, intent.getAction() + " extra state["
-						+ TelephonyManager.EXTRA_STATE_IDLE + "|"
-						+ TelephonyManager.EXTRA_STATE_RINGING + "|"
-						+ TelephonyManager.EXTRA_STATE_OFFHOOK + "]");
-
+				if (null == intent) {
+					throw new NullPointerException("intent can not null");
+				}
+				Log.d(TAG, intent.getAction());
 				if (intent.getAction().equals(Intent.ACTION_MEDIA_MOUNTED)
 						|| intent.getAction().equals(
 								Intent.ACTION_MEDIA_REMOVED)) {
-					String state = Environment.getExternalStorageState();
-					if (Environment.MEDIA_MOUNTED.equals(state)) {
-						isMounted = true;
-					} else {
-						isMounted = false;
-					}
+					onExternalStorageStateChange(context, intent);
 				} else if (intent.getAction().equals(
 						Intent.ACTION_NEW_OUTGOING_CALL)) {
-					String state = intent
-							.getStringExtra(TelephonyManager.EXTRA_STATE);
-					String phoneNo = getResultData();
-					if (null == phoneNo) {
-						phoneNo = intent
-								.getStringExtra(Intent.EXTRA_PHONE_NUMBER);
-					}
-					Log.d(TAG,
-							"Outgoing call, extra_phone_number: "
-									+ phoneNo
-									+ " extra_incoming_number: "
-									+ intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
-									+ " State: " + state);
-					fileNamePrefix = getContactName(context, phoneNo)
-							+ OUTGOING_CALL;
-					Log.d(TAG, fileNamePrefix);
+					onOutgoingCall(context, intent, getResultData());
 				} else if (intent.getAction().equals(
 						TelephonyManager.ACTION_PHONE_STATE_CHANGED)) {
-					String state = intent
-							.getStringExtra(TelephonyManager.EXTRA_STATE);
-					Log.d(TAG,
-							"Phone state changed, extra_phone_number: "
-									+ intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER)
-									+ " extra_incoming_number: "
-									+ intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
-									+ " State: " + state);
-					if (TelephonyManager.EXTRA_STATE_OFFHOOK.equals(state)) {
-						Log.d(TAG, "offhook, start recording...");
-						callRecording();
-					} else if (TelephonyManager.EXTRA_STATE_IDLE.equals(state)) {
-						Log.d(TAG, "idle, stop recording...");
-						stopRecord();
-						fileNamePrefix = IDLE;
-						Log.d(TAG, fileNamePrefix);
-					} else if (TelephonyManager.EXTRA_STATE_RINGING
-							.equals(state)) {
-						Log.d(TAG, "ringing, book incoming number...");
-						fileNamePrefix = getContactName(
-								context,
-								intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER))
-								+ INCOMING_CALL;
-						Log.d(TAG, fileNamePrefix);
-					}
+					onPhoneStateChange(context, intent);
 				}
 			}
 		};
@@ -205,20 +210,27 @@ public class CallRecorderService extends Service {
 			amrRoot.mkdir();
 	}
 
-	public String getContactName(Context cntx, String phoneNo) {
+	private String getContactName(Context cntx, String phoneNo) {
 		Uri uri = Uri.withAppendedPath(PhoneLookup.CONTENT_FILTER_URI,
 				Uri.encode(phoneNo));
 		ContentResolver cr = cntx.getContentResolver();
 		Cursor c = cr.query(uri, new String[] { PhoneLookup.DISPLAY_NAME },
 				null, null, null);
-		Log.d(TAG, "phoneNo: " + phoneNo + c);
-		if (null == c)
+		if (null == c) {
+			Log.d(TAG,
+					"getContactName: The cursor was null when query phoneNo = "
+							+ phoneNo);
 			return phoneNo;
+		}
 		try {
 			if (c.moveToFirst()) {
-				Log.d(TAG, "phoneNo: " + phoneNo + " name: " + c.getShort(0));
-				return c.getString(0);
+				String name = c.getString(0);
+				Log.d(TAG, "getContactName: phoneNo: " + phoneNo + " name: "
+						+ name);
+				return name;
 			} else {
+				Log.d(TAG, "getContactName: Contact name of phoneNo = "
+						+ phoneNo + " was not found.");
 				return phoneNo;
 			}
 		} finally {
