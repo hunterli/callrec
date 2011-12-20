@@ -1,6 +1,9 @@
 package com.cn6000.callrec;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -27,6 +30,8 @@ public class CallRecorderService extends Service {
 	public static final String END = "END";
 
 	protected static final String TAG = CallRecorderService.class.getName();
+	protected static final boolean DEBUG = false;
+
 	private static final String AMR_DIR = "/callrec/";
 	private static final String IDLE = "";
 	private static final String INCOMING_CALL_SUFFIX = "_i";
@@ -49,11 +54,12 @@ public class CallRecorderService extends Service {
 		super.onCreate();
 		this.cntx = getApplicationContext();
 		this.prepareAmrDir();
+		log("service create");
 	}
 
 	@Override
 	public void onDestroy() {
-		Log.d(TAG, "service destory");
+		log("service destory");
 		this.stopRecording();
 		this.cntx = null;
 		super.onDestroy();
@@ -65,12 +71,12 @@ public class CallRecorderService extends Service {
 			return super.onStartCommand(intent, flags, startId);
 		}
 		String state = intent.getStringExtra(STATE);
+		String phoneNo = intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER);
+		log("state: " + state + " phoneNo: " + phoneNo);
 		if (OUTGOING.equals(state)) {
-			String phoneNo = intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER);
 			fileNamePrefix = getContactName(this.getContext(), phoneNo)
 					+ OUTGOING_CALL_SUFFIX;
 		} else if (INCOMING.equals(state)) {
-			String phoneNo = intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER);
 			fileNamePrefix = getContactName(this.getContext(), phoneNo)
 					+ INCOMING_CALL_SUFFIX;
 		} else if (BEGIN.equals(state)) {
@@ -98,15 +104,26 @@ public class CallRecorderService extends Service {
 			recorder.stop();
 			recorder.release();
 			recorder = null;
-			Log.d(TAG, "call recording stopped");
+			log("call recording stopped");
 		}
 	}
 
 	private String getDateTimeString() {
-		SimpleDateFormat localSimpleDateFormat = new SimpleDateFormat(
-				"yyyyMMdd'_'HHmmss");
-		Date localDate = new Date();
-		return localSimpleDateFormat.format(localDate);
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd'_'HHmmss");
+		Date now = new Date();
+		return sdf.format(now);
+	}
+
+	private String getDateString() {
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
+		Date now = new Date();
+		return sdf.format(now);
+	}
+
+	private String getTimeString() {
+		SimpleDateFormat sdf = new SimpleDateFormat("HHmmss");
+		Date now = new Date();
+		return sdf.format(now);
 	}
 
 	private void startRecording() {
@@ -120,7 +137,7 @@ public class CallRecorderService extends Service {
 					+ getDateTimeString()
 					+ "_"
 					+ fileNamePrefix + ".amr");
-			Log.d(TAG, "Prepare recording in " + amr.getAbsolutePath());
+			log("Prepare recording in " + amr.getAbsolutePath());
 			recorder = new MediaRecorder();
 			recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
 			recorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
@@ -129,7 +146,7 @@ public class CallRecorderService extends Service {
 			recorder.prepare();
 			recorder.start();
 			isInRecording = true;
-			Log.d(TAG, "Recording in " + amr.getAbsolutePath());
+			log("Recording in " + amr.getAbsolutePath());
 		} catch (Exception e) {
 			Log.w(TAG, e);
 		}
@@ -147,31 +164,57 @@ public class CallRecorderService extends Service {
 	}
 
 	private String getContactName(Context cntx, String phoneNo) {
-		if (null == phoneNo) return "";
+		if (null == phoneNo)
+			return "";
 		Uri uri = Uri.withAppendedPath(PhoneLookup.CONTENT_FILTER_URI,
 				Uri.encode(phoneNo));
 		ContentResolver cr = cntx.getContentResolver();
 		Cursor c = cr.query(uri, new String[] { PhoneLookup.DISPLAY_NAME },
 				null, null, null);
 		if (null == c) {
-			Log.d(TAG,
-					"getContactName: The cursor was null when query phoneNo = "
-							+ phoneNo);
+			log("getContactName: The cursor was null when query phoneNo = "
+					+ phoneNo);
 			return phoneNo;
 		}
 		try {
 			if (c.moveToFirst()) {
 				String name = c.getString(0);
-				Log.d(TAG, "getContactName: phoneNo: " + phoneNo + " name: "
-						+ name);
+				log("getContactName: phoneNo: " + phoneNo + " name: " + name);
 				return name;
 			} else {
-				Log.d(TAG, "getContactName: Contact name of phoneNo = "
-						+ phoneNo + " was not found.");
+				log("getContactName: Contact name of phoneNo = " + phoneNo
+						+ " was not found.");
 				return phoneNo;
 			}
 		} finally {
 			c.close();
+		}
+	}
+
+	private void log(String info) {
+		if (DEBUG && isMounted) {
+			File log = new File(Environment.getExternalStorageDirectory()
+					.getAbsolutePath()
+					+ AMR_DIR
+					+ "log_"
+					+ getDateString()
+					+ ".txt");
+			try {
+				BufferedWriter out = new BufferedWriter(new FileWriter(log,
+						true));
+				try {
+					synchronized (out) {
+						out.write(getTimeString());
+						out.write(" ");
+						out.write(info);
+						out.newLine();
+					}
+				} finally {
+					out.close();
+				}
+			} catch (IOException e) {
+				Log.w(TAG, e);
+			}
 		}
 	}
 }
