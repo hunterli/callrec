@@ -16,6 +16,7 @@ import android.media.MediaRecorder;
 import android.net.Uri;
 import android.os.Environment;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.provider.ContactsContract.PhoneLookup;
 import android.util.Log;
 
@@ -40,6 +41,7 @@ public class CallRecorderService extends Service {
 	private Context cntx;
 	private volatile String fileNamePrefix = IDLE;
 	private volatile MediaRecorder recorder;
+	private volatile PowerManager.WakeLock wakeLock;
 	private volatile boolean isMounted = false;
 	private volatile boolean isInRecording = false;
 
@@ -104,6 +106,7 @@ public class CallRecorderService extends Service {
 			recorder.stop();
 			recorder.release();
 			recorder = null;
+			releaseWakeLock();
 			log("call recording stopped");
 		}
 	}
@@ -146,6 +149,7 @@ public class CallRecorderService extends Service {
 			recorder.prepare();
 			recorder.start();
 			isInRecording = true;
+			acquireWakeLock();
 			log("Recording in " + amr.getAbsolutePath());
 		} catch (Exception e) {
 			Log.w(TAG, e);
@@ -216,5 +220,25 @@ public class CallRecorderService extends Service {
 				Log.w(TAG, e);
 			}
 		}
+	}
+
+	private void acquireWakeLock() {
+		if (wakeLock == null) {
+			log("Acquiring wake lock");
+			PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+			wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, this
+					.getClass().getCanonicalName());
+			wakeLock.acquire();
+		}
+
+	}
+
+	private void releaseWakeLock() {
+		if (wakeLock != null && wakeLock.isHeld()) {
+			wakeLock.release();
+			wakeLock = null;
+			log("Wake lock released");
+		}
+
 	}
 }
