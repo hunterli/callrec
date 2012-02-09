@@ -31,7 +31,7 @@ public class CallRecorderService extends Service {
 	public static final String END = "END";
 
 	protected static final String TAG = CallRecorderService.class.getName();
-	protected static final boolean DEBUG = false;
+	protected static final boolean DEBUG = true;
 
 	private static final String AMR_DIR = "/callrec/";
 	private static final String IDLE = "";
@@ -117,6 +117,12 @@ public class CallRecorderService extends Service {
 		return sdf.format(now);
 	}
 
+	private String getMonthString() {
+		SimpleDateFormat sdf = new SimpleDateFormat("yyyyMM");
+		Date now = new Date();
+		return sdf.format(now);
+	}
+
 	private String getDateString() {
 		SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
 		Date now = new Date();
@@ -183,6 +189,7 @@ public class CallRecorderService extends Service {
 		try {
 			if (c.moveToFirst()) {
 				String name = c.getString(0);
+				name = name.replaceAll("(\\||\\\\|\\?|\\*|<|:|\"|>)", "");
 				log("getContactName: phoneNo: " + phoneNo + " name: " + name);
 				return name;
 			} else {
@@ -201,7 +208,7 @@ public class CallRecorderService extends Service {
 					.getAbsolutePath()
 					+ AMR_DIR
 					+ "log_"
-					+ getDateString()
+					+ getMonthString()
 					+ ".txt");
 			try {
 				BufferedWriter out = new BufferedWriter(new FileWriter(log,
