@@ -92,6 +92,9 @@ public class CallRecorderService extends Service {
 			} else {
 				isMounted = false;
 			}
+			if (!isInRecording) {
+				stopSelf();
+			}
 		}
 		return START_STICKY;
 	}
@@ -107,6 +110,7 @@ public class CallRecorderService extends Service {
 			recorder.release();
 			recorder = null;
 			releaseWakeLock();
+			stopSelf();
 			log("call recording stopped");
 		}
 	}
