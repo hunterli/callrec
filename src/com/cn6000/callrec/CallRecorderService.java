@@ -31,7 +31,7 @@ public class CallRecorderService extends Service {
 	public static final String END = "END";
 
 	protected static final String TAG = CallRecorderService.class.getName();
-	protected static final boolean DEBUG = true;
+	protected static final boolean DEBUG = false;
 
 	private static final String AMR_DIR = "/callrec/";
 	private static final String IDLE = "";
@@ -219,7 +219,7 @@ public class CallRecorderService extends Service {
 						true));
 				try {
 					synchronized (out) {
-						out.write(getTimeString());
+						out.write(getDateString()+getTimeString());
 						out.write(" ");
 						out.write(info);
 						out.newLine();
